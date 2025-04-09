@@ -1,10 +1,19 @@
-# Nuxt UI Starter
+# Nuxt.js Project with UI Components
 
-Look at [Nuxt docs](https://nuxt.com/docs/getting-started/introduction) and [Nuxt UI docs](https://ui.nuxt.com) to learn more.
+This project is built using [Nuxt.js](https://nuxt.com) and [Nuxt UI](https://ui.nuxt.com), providing a modern and efficient development experience for building user interfaces.
+
+## Features
+
+- **Nuxt.js Framework**: Server-side rendering, static site generation, and more.
+- **Nuxt UI**: Pre-built UI components for faster development.
+- **Pagination**: Custom pagination with "Previous" and "Next" buttons.
+- **Sorting**: Column-based sorting for tables.
+- **Dark Mode Support**: Fully responsive with light and dark themes.
+- **Dynamic Data**: Fetch and display data from an external API.
 
 ## Setup
 
-Make sure to install the dependencies:
+Make sure to install the dependencies before starting the project:
 
 ```bash
 # npm
@@ -20,9 +29,9 @@ yarn install
 bun install
 ```
 
-## Development Server
+## Development
 
-Start the development server on `http://localhost:3000`:
+Start the development server at `http://localhost:3000`:
 
 ```bash
 # npm
@@ -56,7 +65,7 @@ yarn build
 bun run build
 ```
 
-Locally preview production build:
+Preview the production build locally:
 
 ```bash
 # npm
@@ -72,4 +81,20 @@ yarn preview
 bun run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## Features Overview
+
+### Table with Sorting and Pagination
+- **Sorting**: Click on column headers to sort data in ascending or descending order.
+- **Pagination**: Navigate through pages using "Previous" and "Next" buttons.
+
+### Dark Mode
+- Automatically adapts to the user's system preferences.
+- Smooth transitions between light and dark themes.
+
+### Data Fetching
+- Fetches product data from an external API (`https://dummyjson.com/products`).
+- Displays data in a responsive table with images, descriptions, and ratings.
+
+## Deployment
+
+Check out the [Nuxt deployment documentation](https://nuxt.com/docs/getting-started/deployment) for detailed instructions on deploying your application.

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, resolveComponent, onMounted } from 'vue'
+import { h, resolveComponent, onMounted, ref, computed } from 'vue'
 import { upperFirst } from 'scule'
 import type { TableColumn } from '@nuxt/ui'
 
@@ -33,6 +33,24 @@ const loading = ref(true)
 const progress = ref(0)
 const progressInterval = ref<NodeJS.Timeout | null>(null)
 
+// Pagination state
+const currentPage = ref(1)
+const itemsPerPage = ref(10)
+
+const paginatedData = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value
+  return data.value.slice(start, start + itemsPerPage.value)
+})
+
+// Total pages
+const totalPages = computed(() => Math.ceil(data.value.length / itemsPerPage.value))
+
+function changePage(page: number) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
 // Fetch products from DummyJSON API
 async function fetchProducts() {
   loading.value = true
@@ -40,12 +58,9 @@ async function fetchProducts() {
 
   // Start progress animation
   progressInterval.value = setInterval(() => {
-    progress.value += Math.random() * 15
-    if (progress.value >= 95) {
-      progress.value = 95
-      if (progressInterval.value) {
-        clearInterval(progressInterval.value)
-      }
+    progress.value = Math.min(progress.value + Math.random() * 15, 95)
+    if (progress.value >= 95 && progressInterval.value) {
+      clearInterval(progressInterval.value)
     }
   }, 200)
 
@@ -58,7 +73,7 @@ async function fetchProducts() {
     progress.value = 100
     setTimeout(() => {
       loading.value = false
-    }, 500) // Small delay to show completed progress
+    }, 500)
 
   } catch (error) {
     console.error('Error fetching products:', error)
@@ -100,49 +115,69 @@ const columns: TableColumn<Product>[] = [{
     src: row.getValue('thumbnail'),
     alt: row.getValue('title'),
     class: 'w-24 h-24 object-cover rounded',
-    style: 'width: 100px; height: 100px;'
   }),
   enableSorting: false,
 }, {
   accessorKey: 'title',
-  header: 'Назва',
-  cell: ({ row }) => h('div', { class: 'font-medium' }, row.getValue('title'))
+  header: ({ column }) => h('div', {
+    class: 'cursor-pointer select-none',
+    onClick: () => column.toggleSorting()
+  }, [
+    'Назва',
+    column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''
+  ]),
+  cell: ({ row }) => h('div', { class: 'font-medium' }, row.getValue('title')),
+  enableSorting: true,
 }, {
   accessorKey: 'description',
   header: 'Опис',
   cell: ({ row }) => h('div', { class: 'max-w-md truncate' }, row.getValue('description')),
+  enableSorting: false,
 }, {
   accessorKey: 'price',
-  header: 'Ціна',
+  header: ({ column }) => h('div', {
+    class: 'cursor-pointer select-none',
+    onClick: () => column.toggleSorting()
+  }, [
+    'Ціна',
+    column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''
+  ]),
   cell: ({ row }) => {
     const price = Number.parseFloat(row.getValue('price'))
-
     const formatted = new Intl.NumberFormat('uk-UA', {
       style: 'currency',
       currency: 'USD'
     }).format(price)
-
     return h('div', { class: 'font-medium' }, formatted)
-  }
+  },
+  enableSorting: true,
 }, {
   accessorKey: 'rating',
-  header: 'Оцінка',
+  header: ({ column }) => h('div', {
+    class: 'cursor-pointer select-none',
+    onClick: () => column.toggleSorting()
+  }, [
+    'Оцінка',
+    column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''
+  ]),
   cell: ({ row }) => {
     const rating = Number(row.getValue('rating'))
     const textColor = rating >= 4.5 ? 'text-green-500' : 'text-red-500'
-
     return h('div', { class: `font-medium ${textColor}` }, rating.toFixed(1))
-  }
+  },
+  enableSorting: true,
 }, {
   accessorKey: 'brand',
   header: 'Бренд',
-  cell: ({ row }) => h('div', {}, row.getValue('brand'))
+  cell: ({ row }) => h('div', {}, row.getValue('brand')),
+  enableSorting: true, 
 }, {
   accessorKey: 'category',
   header: 'Категорія',
   cell: ({ row }) => {
     return h(UBadge, { class: 'capitalize', variant: 'subtle', color: 'info' }, () => row.getValue('category'))
-  }
+  },
+  enableSorting: true, 
 }, {
   id: 'actions',
   enableHiding: false,
@@ -207,6 +242,11 @@ const skeletonRows = Array(10).fill(0).map((_, i) => i)
 
 <template>
   <div class="flex-1 divide-y divide-(--ui-border-accented) w-full">
+    <div class="bg-blue-500 text-white py-4 px-6 rounded-b-lg shadow-md">
+      <h1 class="text-2xl font-bold">Список продуктів</h1>
+      <p class="text-sm text-blue-100">Переглядайте, сортуйте та керуйте продуктами</p>
+    </div>
+
     <!-- Progress bar for loading state -->
     <div v-if="loading" class="w-full h-1 bg-gray-200 dark:bg-gray-700 fixed top-0 left-0 z-50">
       <div class="h-1 bg-blue-500 transition-all duration-300 ease-out" :style="{ width: `${progress}%` }"></div>
@@ -290,35 +330,11 @@ const skeletonRows = Array(10).fill(0).map((_, i) => i)
         </tr>
         </thead>
         <tbody>
-        <tr v-for="index in skeletonRows" :key="index" class="border-b border-gray-200 dark:border-gray-700">
-          <td class="p-3">
-            <div class="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </td>
-          <td class="p-3">
-            <div class="h-24 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </td>
-          <td class="p-3">
-            <div class="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </td>
-          <td class="p-3">
-            <div class="h-5 w-48 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </td>
-          <td class="p-3">
-            <div class="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </td>
-          <td class="p-3">
-            <div class="h-5 w-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </td>
-          <td class="p-3">
-            <div class="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </td>
-          <td class="p-3">
-            <div class="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </td>
-          <td class="p-3 text-right">
-            <div class="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded ml-auto"></div>
-          </td>
-        </tr>
+        <tr
+          v-for="index in skeletonRows"
+          :key="index"
+          class="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+        />
         </tbody>
       </table>
     </div>
@@ -326,18 +342,21 @@ const skeletonRows = Array(10).fill(0).map((_, i) => i)
     <UTable
         v-else
         ref="table"
-        :data="data"
+        :data="paginatedData"
         :columns="columns"
         sticky
-        class="h-96"
+        class="h-96 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm"
     >
       <template #expanded="{ row }">
-        <div class="p-4 bg-gray-50 dark:bg-gray-800">
+        <div class="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
           <div class="flex gap-4">
             <div class="flex space-x-2">
-              <img v-for="(image, idx) in row.original.images.slice(0, 3)" :key="idx"
-                   :src="image" :alt="`${row.original.title} - image ${idx + 1}`"
-                   class="w-32 h-32 object-cover rounded"
+              <img
+                v-for="(image, idx) in row.original.images.slice(0, 3)"
+                :key="idx"
+                :src="image"
+                :alt="`${row.original.title} - image ${idx + 1}`"
+                class="w-32 h-32 object-cover rounded-lg shadow-sm"
               />
             </div>
             <div>
@@ -359,9 +378,52 @@ const skeletonRows = Array(10).fill(0).map((_, i) => i)
       </template>
     </UTable>
 
+    <div class="flex justify-between items-center px-4 py-3">
+      <button
+        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition disabled:opacity-50"
+        :disabled="currentPage === 1"
+        @click="changePage(currentPage - 1)"
+      >
+        Попередня
+      </button>
+      <span class="text-sm text-gray-600 dark:text-gray-300">
+        Сторінка {{ currentPage }} з {{ totalPages }}
+      </span>
+      <button
+        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition disabled:opacity-50"
+        :disabled="currentPage === totalPages"
+        @click="changePage(currentPage + 1)"
+      >
+        Наступна
+      </button>
+    </div>
+
     <div class="px-4 py-3.5 text-sm text-(--ui-text-muted)">
       {{ table?.tableApi?.getFilteredSelectedRowModel().rows.length || 0 }} з
       {{ table?.tableApi?.getFilteredRowModel().rows.length || 0 }} рядків вибрано.
     </div>
   </div>
 </template>
+
+<style scoped>
+body {
+  background-color: var(--ui-bg);
+  color: var(--ui-text);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+button {
+  transition: background-color 0.3s, transform 0.2s;
+}
+button:hover {
+  transform: scale(1.05);
+}
+tr {
+  transition: background-color 0.3s;
+}
+
+.upagination {
+  --pagination-color: var(--ui-primary);
+  --pagination-hover-color: var(--ui-primary-hover);
+}
+</style>
