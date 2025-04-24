@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { h, resolveComponent, onMounted, ref, computed } from 'vue'
+import { h, resolveComponent, onMounted, ref } from 'vue'
 import { upperFirst } from 'scule'
+import { getPaginationRowModel } from '@tanstack/vue-table'
 import type { TableColumn } from '@nuxt/ui'
 
 useHead({
@@ -31,25 +32,13 @@ type Product = {
 const data = ref<Product[]>([])
 const loading = ref(true)
 const progress = ref(0)
-const progressInterval = ref<NodeJS.Timeout | null>(null)
+const progressInterval = ref<ReturnType<typeof setInterval> | null>(null);
 
 // Pagination state
-const currentPage = ref(1)
-const itemsPerPage = ref(10)
-
-const paginatedData = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value
-  return data.value.slice(start, start + itemsPerPage.value)
+const pagination = ref({
+  pageIndex: 0,
+  pageSize: 10
 })
-
-// Total pages
-const totalPages = computed(() => Math.ceil(data.value.length / itemsPerPage.value))
-
-function changePage(page: number) {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page
-  }
-}
 
 // Fetch products from DummyJSON API
 async function fetchProducts() {
@@ -342,8 +331,12 @@ const skeletonRows = Array(10).fill(0).map((_, i) => i)
     <UTable
         v-else
         ref="table"
-        :data="paginatedData"
+        v-model:pagination="pagination"
+        :data="data"
         :columns="columns"
+        :pagination-options="{
+          getPaginationRowModel: getPaginationRowModel()
+        }"
         sticky
         class="h-96 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm"
     >
@@ -378,24 +371,28 @@ const skeletonRows = Array(10).fill(0).map((_, i) => i)
       </template>
     </UTable>
 
-    <div class="flex justify-between items-center px-4 py-3">
-      <button
-        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition disabled:opacity-50"
-        :disabled="currentPage === 1"
-        @click="changePage(currentPage - 1)"
-      >
-        Попередня
-      </button>
-      <span class="text-sm text-gray-600 dark:text-gray-300">
-        Сторінка {{ currentPage }} з {{ totalPages }}
-      </span>
-      <button
-        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition disabled:opacity-50"
-        :disabled="currentPage === totalPages"
-        @click="changePage(currentPage + 1)"
-      >
-        Наступна
-      </button>
+    <div class="flex justify-center border-t border-default pt-4 px-4 py-3">
+      <UPagination
+        :default-page="(table?.tableApi?.getState().pagination.pageIndex || 0) + 1"
+        :items-per-page="table?.tableApi?.getState().pagination.pageSize"
+        :total="table?.tableApi?.getFilteredRowModel().rows.length || 0"
+        @update:page="(p) => table?.tableApi?.setPageIndex(p - 1)"
+        :ui="{
+          wrapper: 'flex items-center justify-center gap-1',
+          rounded: 'rounded-md',
+          default: {
+            size: 'md',
+            activeButton: {
+              color: 'primary',
+              variant: 'solid'
+            },
+            inactiveButton: {
+              color: 'gray',
+              variant: 'ghost'
+            }
+          }
+        }"
+      />
     </div>
 
     <div class="px-4 py-3.5 text-sm text-(--ui-text-muted)">
