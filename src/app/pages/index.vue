@@ -1,98 +1,62 @@
 <script setup lang="ts">
-import { h, resolveComponent, onMounted, ref } from 'vue'
-import { upperFirst } from 'scule'
-import { getPaginationRowModel } from '@tanstack/vue-table'
+import { h, onMounted, ref, shallowRef, computed } from 'vue'
+import { getPaginationRowModel, type Table } from '@tanstack/vue-table'
 import type { TableColumn } from '@nuxt/ui'
 
-useHead({
-  title: 'Список продуктів'
-})
-
-const UButton = resolveComponent('UButton')
-const UCheckbox = resolveComponent('UCheckbox')
-const UBadge = resolveComponent('UBadge')
-const UDropdownMenu = resolveComponent('UDropdownMenu')
-
-const toast = useToast()
+useHead({ title: 'Список продуктів' })
 
 type Product = {
   id: number
   title: string
   description: string
   price: number
-  discountPercentage: number
   rating: number
-  stock: number
   brand: string
   category: string
   thumbnail: string
-  images: string[]
 }
 
-const data = ref<Product[]>([])
+const data = shallowRef<Product[]>([])
 const loading = ref(true)
-const progress = ref(0)
-const progressInterval = ref<ReturnType<typeof setInterval> | null>(null);
+const pagination = ref({ pageIndex: 0, pageSize: 10 })
+const table = ref<{ tableApi: Table<Product> } | null>(null)
 
-// Pagination state
-const pagination = ref({
-  pageIndex: 0,
-  pageSize: 10
-})
+// Creates a sortable column header with arrows for sort direction
+const createSortableHeader = (title: string) => ({ column }: { column: any }) => h('div', {
+  class: 'cursor-pointer select-none',
+  onClick: () => column.toggleSorting()
+}, [
+  title,
+  column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''
+])
 
-// Fetch products from DummyJSON API
 async function fetchProducts() {
   loading.value = true
-  progress.value = 0
-
-  // Start progress animation
-  progressInterval.value = setInterval(() => {
-    progress.value = Math.min(progress.value + Math.random() * 15, 95)
-    if (progress.value >= 95 && progressInterval.value) {
-      clearInterval(progressInterval.value)
-    }
-  }, 200)
-
+  
   try {
-    const response = await fetch('https://dummyjson.com/products?limit=100')
+    const response = await fetch('https://dummyjson.com/products?limit=150')
     const result = await response.json()
     data.value = result.products
-
-    // Complete progress animation
-    progress.value = 100
-    setTimeout(() => {
-      loading.value = false
-    }, 500)
-
   } catch (error) {
     console.error('Error fetching products:', error)
-    toast.add({
-      title: 'Error fetching products',
-      color: 'error',
-      icon: 'i-lucide-alert-circle'
-    })
-    loading.value = false
   } finally {
-    if (progressInterval.value) {
-      clearInterval(progressInterval.value)
-    }
+    loading.value = false
   }
 }
 
-onMounted(() => {
-  fetchProducts()
-})
+onMounted(fetchProducts)
 
-const columns: TableColumn<Product>[] = [{
+// Memoized table columns definition
+const columns = computed<TableColumn<Product>[]>(() => [{
   id: 'select',
-  header: ({ table }) => h(UCheckbox, {
+  header: ({ table }) => h('UCheckbox', {
     'modelValue': table.getIsSomePageRowsSelected() ? 'indeterminate' : table.getIsAllPageRowsSelected(),
-    'onUpdate:modelValue': (value: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!value),
+    'onUpdate:modelValue': (value: boolean | string) => table.toggleAllPageRowsSelected(!!value),
     'aria-label': 'Select all'
   }),
-  cell: ({ row }) => h(UCheckbox, {
+  cell: ({ row }) => h('UCheckbox', {
     'modelValue': row.getIsSelected(),
-    'onUpdate:modelValue': (value: boolean | 'indeterminate') => row.toggleSelected(!!value),
+    'onUpdate:modelValue': (value: boolean | string) => row.toggleSelected(!!value),
     'aria-label': 'Select row'
   }),
   enableSorting: false,
@@ -104,17 +68,12 @@ const columns: TableColumn<Product>[] = [{
     src: row.getValue('thumbnail'),
     alt: row.getValue('title'),
     class: 'w-24 h-24 object-cover rounded',
+    loading: 'lazy',
   }),
   enableSorting: false,
 }, {
   accessorKey: 'title',
-  header: ({ column }) => h('div', {
-    class: 'cursor-pointer select-none',
-    onClick: () => column.toggleSorting()
-  }, [
-    'Назва',
-    column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''
-  ]),
+  header: createSortableHeader('Назва'),
   cell: ({ row }) => h('div', { class: 'font-medium' }, row.getValue('title')),
   enableSorting: true,
 }, {
@@ -124,13 +83,7 @@ const columns: TableColumn<Product>[] = [{
   enableSorting: false,
 }, {
   accessorKey: 'price',
-  header: ({ column }) => h('div', {
-    class: 'cursor-pointer select-none',
-    onClick: () => column.toggleSorting()
-  }, [
-    'Ціна',
-    column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''
-  ]),
+  header: createSortableHeader('Ціна'),
   cell: ({ row }) => {
     const price = Number.parseFloat(row.getValue('price'))
     const formatted = new Intl.NumberFormat('uk-UA', {
@@ -142,17 +95,12 @@ const columns: TableColumn<Product>[] = [{
   enableSorting: true,
 }, {
   accessorKey: 'rating',
-  header: ({ column }) => h('div', {
-    class: 'cursor-pointer select-none',
-    onClick: () => column.toggleSorting()
-  }, [
-    'Оцінка',
-    column.getIsSorted() === 'asc' ? ' 🔼' : column.getIsSorted() === 'desc' ? ' 🔽' : ''
-  ]),
+  header: createSortableHeader('Оцінка'),
   cell: ({ row }) => {
     const rating = Number(row.getValue('rating'))
-    const textColor = rating >= 4.5 ? 'text-green-500' : 'text-red-500'
-    return h('div', { class: `font-medium ${textColor}` }, rating.toFixed(1))
+    return h('div', { 
+      class: `font-medium ${rating >= 4.5 ? 'text-green-500' : 'text-red-500'}` 
+    }, rating.toFixed(1))
   },
   enableSorting: true,
 }, {
@@ -163,70 +111,21 @@ const columns: TableColumn<Product>[] = [{
 }, {
   accessorKey: 'category',
   header: 'Категорія',
-  cell: ({ row }) => {
-    return h(UBadge, { class: 'capitalize', variant: 'subtle', color: 'info' }, () => row.getValue('category'))
-  },
+  cell: ({ row }) => h('UBadge', { 
+    class: 'capitalize', 
+    variant: 'subtle', 
+    color: 'info' 
+  }, { default: () => row.getValue('category') }),
   enableSorting: true, 
-}, {
-  id: 'actions',
-  enableHiding: false,
-  cell: ({ row }) => {
-    const items = [{
-      type: 'label',
-      label: 'Дії'
-    }, {
-      label: 'Копіювати ID',
-      onSelect() {
-        navigator.clipboard.writeText(row.original.id.toString())
+}])
 
-        toast.add({
-          title: 'ID скопійовано!',
-          color: 'success',
-          icon: 'i-lucide-circle-check'
-        })
-      }
-    }, {
-      label: row.getIsExpanded() ? 'Згорнути' : 'Розгорнути',
-      onSelect() {
-        row.toggleExpanded()
-      }
-    }, {
-      type: 'separator'
-    }, {
-      label: 'Переглянути деталі'
-    }, {
-      label: 'Додати в кошик'
-    }]
-
-    return h('div', { class: 'text-right' }, h(UDropdownMenu, {
-      'content': {
-        align: 'end'
-      },
-      items,
-      'aria-label': 'Actions dropdown'
-    }, () => h(UButton, {
-      'icon': 'i-lucide-ellipsis-vertical',
-      'color': 'neutral',
-      'variant': 'ghost',
-      'class': 'ml-auto',
-      'aria-label': 'Actions dropdown'
-    })))
-  }
-}]
-
-const table = useTemplateRef('table')
-
-function randomize() {
-  data.value = [...data.value].sort(() => Math.random() - 0.5)
-}
-
-// Function to reload data
-function reloadData() {
-  fetchProducts()
-}
-
-// Create skeleton rows for loading state
-const skeletonRows = Array(10).fill(0).map((_, i) => i)
+// Computed table statistics for display
+const tableStats = computed(() => ({
+  selectedRowsCount: table.value?.tableApi?.getFilteredSelectedRowModel().rows.length || 0,
+  totalFilteredRows: table.value?.tableApi?.getFilteredRowModel().rows.length || 0,
+  currentPage: (table.value?.tableApi?.getState().pagination.pageIndex || 0) + 1,
+  pageSize: table.value?.tableApi?.getState().pagination.pageSize,
+}))
 </script>
 
 <template>
@@ -236,191 +135,66 @@ const skeletonRows = Array(10).fill(0).map((_, i) => i)
       <p class="text-sm text-blue-100">Переглядайте, сортуйте та керуйте продуктами</p>
     </div>
 
-    <!-- Progress bar for loading state -->
-    <div v-if="loading" class="w-full h-1 bg-gray-200 dark:bg-gray-700 fixed top-0 left-0 z-50">
-      <div class="h-1 bg-blue-500 transition-all duration-300 ease-out" :style="{ width: `${progress}%` }"></div>
-    </div>
-
     <div class="flex items-center gap-2 px-4 py-3.5 overflow-x-auto">
       <UInput
-          :model-value="(table?.tableApi?.getColumn('title')?.getFilterValue() as string)"
-          class="max-w-sm min-w-[12ch]"
-          placeholder="Пошук за назвою..."
-          @update:model-value="table?.tableApi?.getColumn('title')?.setFilterValue($event)"
+        :model-value="(table?.tableApi?.getColumn('title')?.getFilterValue() as string)"
+        class="max-w-sm min-w-[12ch]"
+        placeholder="Пошук за назвою..."
+        @update:model-value="table?.tableApi?.getColumn('title')?.setFilterValue($event)"
       />
-
-      <UButton color="neutral" label="Випадково" @click="randomize" />
-      <UButton color="info" label="Оновити" icon="i-lucide-refresh-cw" @click="reloadData" />
-
-      <UDropdownMenu
-          :items="table?.tableApi?.getAllColumns().filter(column => column.getCanHide()).map(column => ({
-          label: upperFirst(column.id),
-          type: 'checkbox' as const,
-          checked: column.getIsVisible(),
-          onUpdateChecked(checked: boolean) {
-            table?.tableApi?.getColumn(column.id)?.toggleVisibility(!!checked)
-          },
-          onSelect(e?: Event) {
-            e?.preventDefault()
-          }
-        }))"
-          :content="{ align: 'end' }"
-      >
-        <UButton
-            label="Колонки"
-            color="neutral"
-            variant="outline"
-            trailing-icon="i-lucide-chevron-down"
-            class="ml-auto"
-            aria-label="Columns select dropdown"
-        />
-      </UDropdownMenu>
+      <UButton color="info" label="Оновити" icon="i-lucide-refresh-cw" @click="fetchProducts" />
     </div>
 
-    <div v-if="loading" class="relative h-96 w-full">
-      <!-- Loading overlay -->
-      <div class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-gray-800 bg-opacity-80 dark:bg-opacity-80 z-10">
+    <!-- Loading skeleton -->
+    <div v-if="loading" class="h-96 w-full flex items-center justify-center">
+      <div class="text-center">
         <ULoading size="lg" class="mb-4" />
-        <p class="text-sm text-gray-600 dark:text-gray-300">Завантаження даних про продукти...</p>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ Math.round(progress) }}% завершено</p>
+        <p class="text-sm text-gray-600 dark:text-gray-300">Завантаження даних...</p>
       </div>
-
-      <!-- Skeleton table for better loading UX -->
-      <table class="w-full table-auto">
-        <thead>
-        <tr class="border-b border-gray-200 dark:border-gray-700">
-          <th class="p-3 text-left">
-            <div class="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </th>
-          <th class="p-3 text-left">
-            <div class="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </th>
-          <th class="p-3 text-left">
-            <div class="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </th>
-          <th class="p-3 text-left">
-            <div class="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </th>
-          <th class="p-3 text-left">
-            <div class="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </th>
-          <th class="p-3 text-left">
-            <div class="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </th>
-          <th class="p-3 text-left">
-            <div class="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </th>
-          <th class="p-3 text-left">
-            <div class="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </th>
-          <th class="p-3 text-right">
-            <div class="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded ml-auto"></div>
-          </th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr
-          v-for="index in skeletonRows"
-          :key="index"
-          class="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        />
-        </tbody>
-      </table>
     </div>
 
+    <!-- Data table -->
     <UTable
-        v-else
-        ref="table"
-        v-model:pagination="pagination"
-        :data="data"
-        :columns="columns"
-        :pagination-options="{
-          getPaginationRowModel: getPaginationRowModel()
-        }"
-        sticky
-        class="h-96 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm"
-    >
-      <template #expanded="{ row }">
-        <div class="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-          <div class="flex gap-4">
-            <div class="flex space-x-2">
-              <img
-                v-for="(image, idx) in row.original.images.slice(0, 3)"
-                :key="idx"
-                :src="image"
-                :alt="`${row.original.title} - image ${idx + 1}`"
-                class="w-32 h-32 object-cover rounded-lg shadow-sm"
-              />
-            </div>
-            <div>
-              <h3 class="text-lg font-semibold">{{ row.original.title }}</h3>
-              <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">{{ row.original.description }}</p>
-              <div class="mt-2 flex flex-wrap gap-2">
-                <div>
-                  <span class="text-sm font-medium">Знижка: </span>
-                  <UBadge color="success">{{ row.original.discountPercentage }}% off</UBadge>
-                </div>
-                <div>
-                  <span class="text-sm font-medium">Залишок: </span>
-                  <UBadge :color="row.original.stock > 50 ? 'success' : 'warning'">{{ row.original.stock }} шт.</UBadge>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-    </UTable>
+      v-else
+      ref="table"
+      v-model:pagination="pagination"
+      :data="data"
+      :columns="columns"
+      :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
+      sticky
+      class="h-96 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm"
+    />
 
-    <div class="flex justify-center border-t border-default pt-4 px-4 py-3">
+    <!-- Pagination -->
+    <div v-if="!loading" class="flex justify-center border-t border-default pt-4 px-4 py-3">
       <UPagination
-        :default-page="(table?.tableApi?.getState().pagination.pageIndex || 0) + 1"
-        :items-per-page="table?.tableApi?.getState().pagination.pageSize"
-        :total="table?.tableApi?.getFilteredRowModel().rows.length || 0"
+        :default-page="tableStats.currentPage"
+        :items-per-page="tableStats.pageSize"
+        :total="tableStats.totalFilteredRows"
         @update:page="(p) => table?.tableApi?.setPageIndex(p - 1)"
         :ui="{
           wrapper: 'flex items-center justify-center gap-1',
           rounded: 'rounded-md',
           default: {
             size: 'md',
-            activeButton: {
-              color: 'primary',
-              variant: 'solid'
-            },
-            inactiveButton: {
-              color: 'gray',
-              variant: 'ghost'
-            }
+            activeButton: { color: 'primary', variant: 'solid' },
+            inactiveButton: { color: 'gray', variant: 'ghost' }
           }
         }"
       />
     </div>
 
-    <div class="px-4 py-3.5 text-sm text-(--ui-text-muted)">
-      {{ table?.tableApi?.getFilteredSelectedRowModel().rows.length || 0 }} з
-      {{ table?.tableApi?.getFilteredRowModel().rows.length || 0 }} рядків вибрано.
+    <!-- Selected rows statistics -->
+    <div v-if="!loading" class="px-4 py-3.5 text-sm text-(--ui-text-muted)">
+      {{ tableStats.selectedRowsCount }} з {{ tableStats.totalFilteredRows }} рядків вибрано.
     </div>
   </div>
 </template>
 
 <style scoped>
-body {
-  background-color: var(--ui-bg);
-  color: var(--ui-text);
-  transition: background-color 0.3s, color 0.3s;
-}
-
 button {
-  transition: background-color 0.3s, transform 0.2s;
-}
-button:hover {
-  transform: scale(1.05);
-}
-tr {
   transition: background-color 0.3s;
 }
 
-.upagination {
-  --pagination-color: var(--ui-primary);
-  --pagination-hover-color: var(--ui-primary-hover);
-}
+tr { transition: background-color 0.3s; }
 </style>
