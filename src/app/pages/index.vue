@@ -48,20 +48,6 @@ onMounted(fetchProducts)
 
 // Memoized table columns definition
 const columns = computed<TableColumn<Product>[]>(() => [{
-  id: 'select',
-  header: ({ table }) => h('UCheckbox', {
-    'modelValue': table.getIsSomePageRowsSelected() ? 'indeterminate' : table.getIsAllPageRowsSelected(),
-    'onUpdate:modelValue': (value: boolean | string) => table.toggleAllPageRowsSelected(!!value),
-    'aria-label': 'Select all'
-  }),
-  cell: ({ row }) => h('UCheckbox', {
-    'modelValue': row.getIsSelected(),
-    'onUpdate:modelValue': (value: boolean | string) => row.toggleSelected(!!value),
-    'aria-label': 'Select row'
-  }),
-  enableSorting: false,
-  enableHiding: false
-}, {
   accessorKey: 'thumbnail',
   header: 'Фото',
   cell: ({ row }) => h('img', {
@@ -172,21 +158,12 @@ const tableStats = computed(() => ({
         :items-per-page="tableStats.pageSize"
         :total="tableStats.totalFilteredRows"
         @update:page="(p) => table?.tableApi?.setPageIndex(p - 1)"
-        :ui="{
-          wrapper: 'flex items-center justify-center gap-1',
-          rounded: 'rounded-md',
-          default: {
-            size: 'md',
-            activeButton: { color: 'primary', variant: 'solid' },
-            inactiveButton: { color: 'gray', variant: 'ghost' }
-          }
-        }"
       />
     </div>
 
     <!-- Selected rows statistics -->
     <div v-if="!loading" class="px-4 py-3.5 text-sm text-(--ui-text-muted)">
-      {{ tableStats.selectedRowsCount }} з {{ tableStats.totalFilteredRows }} рядків вибрано.
+      {{ tableStats.totalFilteredRows }} рядків завантажено.
     </div>
   </div>
 </template>
